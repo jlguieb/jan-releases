@@ -1,0 +1,143 @@
+name: Release Android
+
+# Push a tag like v1.2.0 (stable) or v1.3.0-beta.1 (beta) in the app repo.
+# This builds a signed APK and publishes it to jlguieb/jan-releases as
+# <APP_ID>-v<version>, which makes AppHub show the update.
+#
+# Copy this file to <app repo>/.github/workflows/release-android.yml and set
+# APP_ID, APP_NAME and (if pubspec.yaml is not at the repo root) the
+# working-directory below.
+#
+# Required repo secrets:
+#   ANDROID_KEYSTORE_BASE64   base64 of the upload .jks file
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   RELEASES_TOKEN            fine-grained PAT, Contents read/write on jlguieb/jan-releases only
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  APP_ID: CHANGE_ME              # must match the id in jan-releases/apps.json
+  APP_NAME: CHANGE_ME
+  RELEASES_REPO: jlguieb/jan-releases
+  FLUTTER_VERSION: 3.47.0        # keep equal to the version on the laptop
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .     # folder that contains pubspec.yaml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Plain git clone instead of a third-party setup action, so the
+      # workflow runs even when the repo only allows GitHub-owned actions.
+      - name: Install Flutter ${{ env.FLUTTER_VERSION }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          git clone --depth 1 -b "$FLUTTER_VERSION" https://github.com/flutter/flutter.git
+          echo "${{ runner.temp }}/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Check tag matches pubspec version
+        id: ver
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PUB=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
+          PUB_NAME="${PUB%%+*}"
+          PUB_CODE="${PUB##*+}"
+          if [ "$PUB_NAME" != "$TAG_VERSION" ]; then
+            echo "::error::Tag is v$TAG_VERSION but pubspec.yaml says version: $PUB. Bump pubspec first."
+            exit 1
+          fi
+          if ! [[ "$PUB_CODE" =~ ^[0-9]+$ ]] || [ "$PUB" = "$PUB_CODE" ]; then
+            echo "::error::pubspec.yaml version needs a build number, e.g. version: $PUB_NAME+2"
+            exit 1
+          fi
+          echo "version=$PUB_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$PUB_CODE" >> "$GITHUB_OUTPUT"
+          if [[ "$PUB_NAME" == *-* ]]; then echo "pre=true" >> "$GITHUB_OUTPUT"; else echo "pre=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Write signing files
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::Signing secrets are missing. See jan-releases/README.md, step 2."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/app/upload.jks
+          {
+            echo "storePassword=$STORE_PASS"
+            echo "keyPassword=$KEY_PASS"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=upload.jks"
+          } > android/key.properties
+
+      - name: Build APK
+        run: |
+          flutter --version
+          flutter pub get
+          flutter build apk --release
+
+      - name: Verify signature is not the debug key
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          CERTS=$("$APKSIGNER" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)
+          echo "$CERTS"
+          if echo "$CERTS" | grep -q "CN=Android Debug"; then
+            echo "::error::APK is signed with the debug key. Check android/app/build.gradle.kts signingConfigs."
+            exit 1
+          fi
+
+      - name: Prepare release files
+        id: files
+        run: |
+          OUT="$RUNNER_TEMP/$APP_ID-${{ steps.ver.outputs.version }}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$OUT"
+          SHA=$(sha256sum "$OUT" | awk '{print $1}')
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            if [ -n "$PREV" ]; then
+              echo "Changes since $PREV:"
+              git log --no-merges --pretty='- %s' "$PREV..$GITHUB_REF_NAME" | head -n 40
+            else
+              echo "First release."
+            fi
+            echo
+            echo "versionCode: ${{ steps.ver.outputs.code }}"
+            echo "sha256: $SHA"
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to jan-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "::error::RELEASES_TOKEN secret is missing."; exit 1; fi
+          PRE_FLAG=""
+          if [ "${{ steps.ver.outputs.pre }}" = "true" ]; then PRE_FLAG="--prerelease"; fi
+          gh release create "$APP_ID-v${{ steps.ver.outputs.version }}" \
+            "${{ steps.files.outputs.apk }}" \
+            --repo "$RELEASES_REPO" \
+            --title "$APP_NAME ${{ steps.ver.outputs.version }}" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            $PRE_FLAG
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f android/app/upload.jks android/key.properties

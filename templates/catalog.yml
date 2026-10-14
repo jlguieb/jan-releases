@@ -1,0 +1,48 @@
+name: Build catalog
+
+# Runs when an app's release workflow publishes a release here (it uses a
+# personal access token, so the event does trigger this workflow), when a
+# release is edited or deleted, when apps.json changes, or by hand.
+on:
+  release:
+    types: [published, edited, deleted, prereleased, released]
+  push:
+    branches: [main]
+    paths: [apps.json, scripts/build_catalog.py]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Build catalog.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/build_catalog.py --repo "${{ github.repository }}"
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- catalog.json; then
+            echo "catalog.json unchanged"
+            exit 0
+          fi
+          git config user.name "catalog-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog.json
+          git commit -m "catalog: update"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 5
+          done
+          exit 1

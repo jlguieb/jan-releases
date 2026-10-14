@@ -1,0 +1,49 @@
+{
+  "apps": [
+    {
+      "id": "apphub",
+      "name": "AppHub",
+      "type": "android",
+      "package": "com.impedence.apphub",
+      "description": "Install and update Jan's apps.",
+      "developer": "Impedence",
+      "category": "Utilities"
+    },
+    {
+      "id": "hydrobot",
+      "name": "HYDROBOT",
+      "type": "android",
+      "package": "com.impedence.hydrobot",
+      "description": "Monitor and control the bio-coagulant water-treatment unit.",
+      "developer": "Impedence",
+      "category": "IoT"
+    },
+    {
+      "id": "nm400",
+      "name": "400nm",
+      "type": "android",
+      "package": "com.impedence.nm400",
+      "description": "UV exposure and etching controller for presensitized PCBs.",
+      "developer": "Impedence",
+      "category": "Tools"
+    },
+    {
+      "id": "kamurulan",
+      "name": "Kamurulan",
+      "type": "android",
+      "package": "com.impedence.kamurulan",
+      "description": "Monitoring app for the Kamurulan soil sensor node.",
+      "developer": "Impedence",
+      "category": "IoT"
+    },
+    {
+      "id": "dualnback",
+      "name": "Dual N-Back",
+      "type": "android",
+      "package": "com.impedence.dualnback",
+      "description": "Dual N-Back working-memory training.",
+      "developer": "Impedence",
+      "category": "Education"
+    }
+  ]
+}
