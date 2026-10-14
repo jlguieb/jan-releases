@@ -1,5 +1,66 @@
 {
   "schema": 1,
   "updated": "",
-  "apps": []
+  "apps": [
+    {
+      "id": "apphub",
+      "name": "AppHub",
+      "type": "android",
+      "description": "Install and update Jan's apps.",
+      "developer": "Impedence",
+      "category": "Utilities",
+      "package": "com.impedence.apphub",
+      "stable": null,
+      "beta": null,
+      "history": []
+    },
+    {
+      "id": "hydrobot",
+      "name": "HYDROBOT",
+      "type": "android",
+      "description": "Monitor and control the bio-coagulant water-treatment unit.",
+      "developer": "Impedence",
+      "category": "IoT",
+      "package": "com.impedence.hydrobot",
+      "stable": null,
+      "beta": null,
+      "history": []
+    },
+    {
+      "id": "nm400",
+      "name": "400nm",
+      "type": "android",
+      "description": "UV exposure and etching controller for presensitized PCBs.",
+      "developer": "Impedence",
+      "category": "Tools",
+      "package": "com.impedence.nm400",
+      "stable": null,
+      "beta": null,
+      "history": []
+    },
+    {
+      "id": "kamurulan",
+      "name": "Kamurulan",
+      "type": "android",
+      "description": "Monitoring app for the Kamurulan soil sensor node.",
+      "developer": "Impedence",
+      "category": "IoT",
+      "package": "com.impedence.kamurulan",
+      "stable": null,
+      "beta": null,
+      "history": []
+    },
+    {
+      "id": "dualnback",
+      "name": "Dual N-Back",
+      "type": "android",
+      "description": "Dual N-Back working-memory training.",
+      "developer": "Impedence",
+      "category": "Education",
+      "package": "com.impedence.dualnback",
+      "stable": null,
+      "beta": null,
+      "history": []
+    }
+  ]
 }
